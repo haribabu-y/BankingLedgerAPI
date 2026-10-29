@@ -1,6 +1,8 @@
 using BankingLedgerAPI.DatabaseSetting;
 using BankingLedgerAPI.Models;
 using BankingLedgerAPI.Services;
+using BankingLedgerAPI.Repositories;
+using BankingLedgerAPI.Repositories.Interfaces;
 using MongoDB.Driver;
 using System.Text;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
@@ -57,6 +59,9 @@ builder.Services.AddSingleton<IMongoDatabase>(sp =>
 builder.Services.AddScoped<ICustomerService, CustomerService>();
 builder.Services.AddScoped<IAccountService, AccountService>();
 builder.Services.AddScoped<ITransactionService, TransactionService>();
+builder.Services.AddScoped<ICustomerRepository, CustomerRepository>();
+builder.Services.AddScoped<IAccountRepository, AccountRepository>();
+builder.Services.AddScoped<ITransactionRepository, TransactionRepository>();
 builder.Services.AddScoped<TokenService>();
 
 // JWT Authentication configuration

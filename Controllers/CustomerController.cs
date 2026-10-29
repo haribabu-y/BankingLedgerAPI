@@ -21,7 +21,7 @@ public class CustomerController: ControllerBase
     [HttpPost("register")]
     public async Task<IActionResult> Register(CreateCustomerDto dto)
     {
-        var result = await _customerService.RegisterCustomer(dto);
+        LoginResponseDto? result = await _customerService.RegisterCustomer(dto);
         if (result is null) {
             return Conflict(new {
                 message = "An account with this email already exists."
@@ -35,7 +35,7 @@ public class CustomerController: ControllerBase
     [HttpPost("login")]
     public async Task<IActionResult> Login(LoginRequestDto dto)
     {
-        var result = await _customerService.LoginCustomer(dto);
+        LoginResponseDto? result = await _customerService.LoginCustomer(dto);
 
         if (result is null) {
             return Unauthorized(new {
@@ -46,11 +46,11 @@ public class CustomerController: ControllerBase
         return Ok(result);
     }
 
-    [Authorize(Roles = "Customer,Admin")]
+    [Authorize]
     [HttpGet("{id}")]
     public async Task<IActionResult> GetCustomerById(string id)
     {
-        var customer = await _customerService.GetCustomerById(id);
+        CustomerResponseDto? customer = await _customerService.GetCustomerById(id);
 
         if (customer is null) {
             return NotFound(new {
@@ -65,7 +65,7 @@ public class CustomerController: ControllerBase
     [HttpGet]
     public async Task<IActionResult> GetAllCustomers()
     {
-        var customers = await _customerService.GetAllCustomers();
+        List<CustomerResponseDto> customers = await _customerService.GetAllCustomers();
 
         return Ok(customers);
     }
@@ -74,7 +74,7 @@ public class CustomerController: ControllerBase
     [HttpDelete("{id}")]
     public async Task<IActionResult> DeleteCustomer(string id)
     {
-        var deleted = await _customerService.DeleteCustomer(id);
+        bool deleted = await _customerService.DeleteCustomer(id);
 
         if (!deleted) {
             return NotFound(new { message = "Customer not found." });

@@ -49,3 +49,4 @@ C:\Users\HaribabuYellappagari\Desktop\DOTNET\BankingLedgerAPI\obj\Debug\net10.0\
 C:\Users\HaribabuYellappagari\Desktop\DOTNET\BankingLedgerAPI\obj\Debug\net10.0\BankingLedgerAPI.pdb
 C:\Users\HaribabuYellappagari\Desktop\DOTNET\BankingLedgerAPI\obj\Debug\net10.0\BankingLedgerAPI.genruntimeconfig.cache
 C:\Users\HaribabuYellappagari\Desktop\DOTNET\BankingLedgerAPI\obj\Debug\net10.0\ref\BankingLedgerAPI.dll
+C:\Users\HaribabuYellappagari\Desktop\DOTNET\BankingLedgerAPI\obj\Debug\net10.0\BankingLedgerAPI.sourcelink.json

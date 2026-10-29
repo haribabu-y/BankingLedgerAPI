@@ -1,7 +1,7 @@
-using MongoDB.Driver;
 using Microsoft.AspNetCore.Identity;
 using BankingLedgerAPI.Models;
 using BankingLedgerAPI.DTOs;
+using BankingLedgerAPI.Repositories.Interfaces;
 using System.Linq;
 
 namespace BankingLedgerAPI.Services;
@@ -9,23 +9,23 @@ namespace BankingLedgerAPI.Services;
 
 public class CustomerService : ICustomerService
 {
-    private readonly IMongoCollection<Customer> _customer;
+    private readonly ICustomerRepository _customerRepository;
     private readonly PasswordHasher<Customer> _passwordHasher;
     private readonly TokenService _tokenService;
 
-    public CustomerService(IMongoDatabase database, TokenService tokenService)
+    public CustomerService(
+        ICustomerRepository customerRepository,
+        TokenService tokenService)
     {
-        _customer = database.GetCollection<Customer>("Customers");
+        _customerRepository = customerRepository;
         _tokenService = tokenService;
         _passwordHasher = new PasswordHasher<Customer>();
     }
 
     public async Task<LoginResponseDto?> RegisterCustomer(CreateCustomerDto dto)
     {
-        var email = dto.Email.Trim().ToLowerInvariant();
-        var existingCustomer = await _customer
-            .Find(u => u.Email == email)
-            .FirstOrDefaultAsync();
+        string email = dto.Email.Trim().ToLowerInvariant();
+        Customer? existingCustomer = await _customerRepository.GetByEmailAsync(email);
 
         if (existingCustomer is not null)
         {
@@ -44,23 +44,23 @@ public class CustomerService : ICustomerService
 
         customer.Password = _passwordHasher.HashPassword(customer, dto.Password);
 
-        await _customer.InsertOneAsync(customer);
+        await _customerRepository.InsertAsync(customer);
 
         return _tokenService.CreateToken(customer);
     }
 
     public async Task<LoginResponseDto?> LoginCustomer(LoginRequestDto dto)
     {
-        var email = dto.Email.Trim().ToLowerInvariant();
+        string email = dto.Email.Trim().ToLowerInvariant();
 
-        var customer = await _customer.Find(u => u.Email == email).FirstOrDefaultAsync();
+        Customer? customer = await _customerRepository.GetByEmailAsync(email);
 
         if (customer is null)
         {
             return null;
         }
 
-        var result = _passwordHasher.VerifyHashedPassword(
+        PasswordVerificationResult result = _passwordHasher.VerifyHashedPassword(
             customer, customer.Password, dto.Password);
 
         if (result == PasswordVerificationResult.Failed)
@@ -73,7 +73,7 @@ public class CustomerService : ICustomerService
 
     public async Task<CustomerResponseDto?> GetCustomerById(string id)
     {
-        var customer = await _customer.Find(u => u.Id == id).FirstOrDefaultAsync();
+        Customer? customer = await _customerRepository.GetByIdAsync(id);
 
         if (customer is null)
         {
@@ -85,22 +85,20 @@ public class CustomerService : ICustomerService
 
     public async Task<List<CustomerResponseDto>> GetAllCustomers()
     {
-        var customers = await _customer.Find(Builders<Customer>.Filter.Empty).ToListAsync();
+        List<Customer> customers = await _customerRepository.GetAllAsync();
 
         return customers.Select(customer => new CustomerResponseDto(customer)).ToList();
     }
 
     public async Task<bool> DeleteCustomer(string id)
     {
-        var customer = await _customer.Find(u => u.Id == id).FirstOrDefaultAsync();
+        Customer? customer = await _customerRepository.GetByIdAsync(id);
 
         if (customer is null)
         {
             return false;
         }
 
-        var result = await _customer.DeleteOneAsync(c => c.Id == id); ;
-
-        return result.DeletedCount > 0;
+        return await _customerRepository.DeleteByIdAsync(id);
     }
 }

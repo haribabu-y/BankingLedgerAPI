@@ -19,7 +19,7 @@ public class AccountController: ControllerBase
     public async Task<IActionResult> CreateAccount(CreateAccountRequestDto request)
     {
         try {
-            var account = await _accountService.CreateAccount(request);
+            AccountResponseDto account = await _accountService.CreateAccount(request);
 
             return CreatedAtAction(
                 nameof(GetAccountById),
@@ -36,7 +36,7 @@ public class AccountController: ControllerBase
     [HttpGet]
     public async Task<IActionResult> GetAllAccounts()
     {
-        var accounts = await _accountService.GetAllAccounts();
+        List<AccountResponseDto> accounts = await _accountService.GetAllAccounts();
 
         return Ok(accounts);
     }
@@ -45,7 +45,7 @@ public class AccountController: ControllerBase
     [HttpGet("{id}")]
     public async Task<IActionResult> GetAccountById(string id)
     {
-        var account = await _accountService.GetAccountById(id);
+        AccountResponseDto? account = await _accountService.GetAccountById(id);
 
         if (account is null) {
             return NotFound(new { message = "Account not found." });
@@ -58,7 +58,7 @@ public class AccountController: ControllerBase
     public async Task<IActionResult> GetAccountsByCustomerId(string customerId)
     {
         try {
-            var accounts = await _accountService.GetAccountsByCustomerId(customerId);
+            List<AccountResponseDto> accounts = await _accountService.GetAccountsByCustomerId(customerId);
 
             return Ok(accounts);
         } catch (ArgumentException ex) {
@@ -70,7 +70,7 @@ public class AccountController: ControllerBase
     [HttpDelete("{id}")]
     public async Task<IActionResult> CloseAccount(string id) {
         try {
-            var closed = await _accountService.CloseAccount(id);
+            bool closed = await _accountService.CloseAccount(id);
 
             if (!closed) {
                 return NotFound(new {

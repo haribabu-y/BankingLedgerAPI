@@ -1,20 +1,21 @@
-using MongoDB.Driver;
 using BankingLedgerAPI.Models;
 using BankingLedgerAPI.DTOs;
 using MongoDB.Bson;
-using BankingLedgerAPI.Services;
+using BankingLedgerAPI.Repositories.Interfaces;
 
 namespace BankingLedgerAPI.Services;
 
 public class AccountService: IAccountService
 {
-    private readonly IMongoCollection<Account> _accounts;
-    private readonly IMongoCollection<Customer> _customers;
+    private readonly IAccountRepository _accountRepository;
+    private readonly ICustomerRepository _customerRepository;
 
-    public AccountService(IMongoDatabase database)
+    public AccountService(
+        IAccountRepository accountRepository,
+        ICustomerRepository customerRepository)
     {
-        _accounts = database.GetCollection<Account>("Accounts");
-        _customers = database.GetCollection<Customer>("Customers");
+        _accountRepository = accountRepository;
+        _customerRepository = customerRepository;
     }
 
     public async Task<AccountResponseDto> CreateAccount(CreateAccountRequestDto request)
@@ -24,7 +25,7 @@ public class AccountService: IAccountService
             throw new ArgumentException("Invalid customer ID.");
         }
 
-        var customer = await _customers.Find(c => c.Id == request.CustomerId).FirstOrDefaultAsync();
+        Customer? customer = await _customerRepository.GetByIdAsync(request.CustomerId);
 
         if (customer is null)
         {
@@ -47,14 +48,14 @@ public class AccountService: IAccountService
             CreatedAt = DateTime.UtcNow
         };
 
-        await _accounts.InsertOneAsync(account);
+        await _accountRepository.InsertAsync(account);
 
         return new AccountResponseDto(account);
     }
 
     public async Task<List<AccountResponseDto>> GetAllAccounts()
     {
-        var accounts = await _accounts.Find(Builders<Account>.Filter.Empty).ToListAsync();
+        List<Account> accounts = await _accountRepository.GetAllAsync();
 
         return accounts.Select(a => new AccountResponseDto(a)).ToList();
     }
@@ -66,7 +67,7 @@ public class AccountService: IAccountService
             return null;
         }
 
-        var account = await _accounts.Find(a => a.Id == id).FirstOrDefaultAsync();
+        Account? account = await _accountRepository.GetByIdAsync(id);
 
         return account is null ? null : new AccountResponseDto(account);
     }
@@ -78,7 +79,7 @@ public class AccountService: IAccountService
             throw new ArgumentException("Invalid customer ID.");
         }
 
-        var accounts = await _accounts.Find(a => a.CustomerId == customerId).ToListAsync();
+        List<Account> accounts = await _accountRepository.GetByCustomerIdAsync(customerId);
 
         return accounts.Select(a => new AccountResponseDto(a)).ToList();
     }
@@ -90,7 +91,7 @@ public class AccountService: IAccountService
             return false;
         }
 
-        var account = await _accounts.Find(a => a.Id == id).FirstOrDefaultAsync();
+        Account? account = await _accountRepository.GetByIdAsync(id);
 
         if (account is null)
         {
@@ -107,11 +108,7 @@ public class AccountService: IAccountService
             return false;
         }
 
-        var result = await _accounts.UpdateOneAsync(
-            a => a.Id == id && a.Status == "Active",
-            Builders<Account>.Update.Set(a => a.Status, "Closed"));
-
-        return result.ModifiedCount > 0;
+        return await _accountRepository.CloseIfActiveAndZeroBalanceAsync(id);
     }
 
     //Method to generate the bank account number
@@ -119,8 +116,8 @@ public class AccountService: IAccountService
     {
         while (true)
         {
-            var accountNumber = Random.Shared.NextInt64(100000000000, 999999999999).ToString();
-            var exists = await _accounts.Find(a => a.AccountNumber == accountNumber).AnyAsync();
+            string accountNumber = Random.Shared.NextInt64(100000000000, 999999999999).ToString();
+            bool exists = await _accountRepository.AccountNumberExistsAsync(accountNumber);
 
             if (!exists)
             {

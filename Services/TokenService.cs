@@ -1,6 +1,7 @@
 using BankingLedgerAPI.DTOs;
 using BankingLedgerAPI.Models;
 using Microsoft.IdentityModel.Tokens;
+using static System.Runtime.InteropServices.JavaScript.JSType;
 using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
 using System.Text;
@@ -17,28 +18,28 @@ public class TokenService
 
     public LoginResponseDto CreateToken(Customer customer)
     {
-        var secret = _configuration["Jwt:SecretKey"]
+        string secret = _configuration["Jwt:SecretKey"]
             ?? throw new InvalidOperationException(
                 "JWT signing key is missing.");
 
-        var issuer = _configuration["Jwt:Issuer"]!;
-        var audience = _configuration["Jwt:Audience"]!;
+        string issuer = _configuration["Jwt:Issuer"]!;
+        string audience = _configuration["Jwt:Audience"]!;
 
-        var expiresAt = DateTime.UtcNow.AddMinutes(
+        DateTime expiresAt = DateTime.UtcNow.AddMinutes(
             _configuration.GetValue<int>("Jwt:AccessTokenMinutes"));
 
-        var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(secret));
+        SymmetricSecurityKey key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(secret));
 
         var credentials = new SigningCredentials(key, SecurityAlgorithms.HmacSha256);
 
-        var claims = new[]
+        Claim[] claims = new[]
         {
             new Claim(ClaimTypes.NameIdentifier, customer.Id!),
             new Claim(ClaimTypes.Email, customer.Email),
             new Claim(ClaimTypes.Role, customer.Role)
         };
 
-        var token = new JwtSecurityToken(
+        JwtSecurityToken token = new JwtSecurityToken(
             issuer: issuer,
             audience: audience,
             claims: claims,

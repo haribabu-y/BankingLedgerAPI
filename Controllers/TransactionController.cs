@@ -20,7 +20,7 @@ public class TransactionController: ControllerBase
     public async Task<IActionResult> Credit(string accountId, [FromBody] CreditRequestDto request)
     {
         try {
-            var result = await _transactionService.Credit(accountId, request);
+            TransactionResponseDto result = await _transactionService.Credit(accountId, request);
             return Ok(result);
         } catch (ArgumentException ex) {
             return BadRequest(new { message = ex.Message });
@@ -36,7 +36,7 @@ public class TransactionController: ControllerBase
     public async Task<IActionResult> Debit(string accountId, [FromBody] DebitRequestDto request)
     {
         try {
-            var result = await _transactionService.Debit(accountId, request);
+            TransactionResponseDto result = await _transactionService.Debit(accountId, request);
 
             return Ok(result);
         } catch (ArgumentException ex) {
@@ -53,7 +53,7 @@ public class TransactionController: ControllerBase
     public async Task<IActionResult> GetAccountTransactions(string accountId)
     {
         try {
-            var transactions = await _transactionService.GetAccountTransactions(accountId);
+            List<TransactionResponseDto> transactions = await _transactionService.GetAccountTransactions(accountId);
 
             return Ok(transactions);
         } catch (ArgumentException ex) {
@@ -67,7 +67,7 @@ public class TransactionController: ControllerBase
     [HttpGet("{transactionId}")]
     public async Task<IActionResult> GetTransactionById(string transactionId)
     {
-        var transaction = await _transactionService.GetTransactionById(transactionId);
+        TransactionResponseDto? transaction = await _transactionService.GetTransactionById(transactionId);
 
         if (transaction is null) {
             return NotFound(new { message = "Transaction not found." });

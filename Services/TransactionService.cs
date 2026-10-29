@@ -1,20 +1,20 @@
 using BankingLedgerAPI.Models;
 using MongoDB.Bson;
-using MongoDB.Driver;
 using BankingLedgerAPI.DTOs;
+using BankingLedgerAPI.Repositories.Interfaces;
 namespace BankingLedgerAPI.Services;
 
 public class TransactionService: ITransactionService
 {
-    private readonly IMongoClient _client;
-    private readonly IMongoCollection<Account> _accounts;
-    private readonly IMongoCollection<Transaction> _transactions;
+    private readonly IAccountRepository _accountRepository;
+    private readonly ITransactionRepository _transactionRepository;
 
-    public TransactionService(IMongoClient client, IMongoDatabase database)
+    public TransactionService(
+        IAccountRepository accountRepository,
+        ITransactionRepository transactionRepository)
     {
-        _client = client;
-        _accounts = database.GetCollection<Account>("Accounts");
-        _transactions = database.GetCollection<Transaction>("Transactions");
+        _accountRepository = accountRepository;
+        _transactionRepository = transactionRepository;
     }
 
     public async Task<TransactionResponseDto> Credit(string accountId, CreditRequestDto request)
@@ -25,7 +25,7 @@ public class TransactionService: ITransactionService
             throw new ArgumentException("Invalid account ID.");
         }
 
-        var account = await _accounts.Find(a => a.Id == accountId).FirstOrDefaultAsync();
+        Account? account = await _accountRepository.GetByIdAsync(accountId);
 
         if(account is null) {
             throw new KeyNotFoundException("Account not found.");
@@ -35,21 +35,12 @@ public class TransactionService: ITransactionService
             throw new InvalidOperationException("Cannot deposit into a closed account.");
         }
 
-        // Update only an active account.
-        var filter = Builders<Account>.Filter.And(
-            Builders<Account>.Filter.Eq(a => a.Id, accountId),
-            Builders<Account>.Filter.Eq(a => a.Status, "Active"));
+        Account? updatedAccount = await _accountRepository
+            .CreditBalanceIfActiveAsync(accountId, request.Amount);
 
-        var update = Builders<Account>.Update
-            .Inc(a => a.Balance, request.Amount);
-
-        var result = await _accounts.UpdateOneAsync(filter, update);
-
-        if(result.ModifiedCount != 1) {
+        if(updatedAccount is null) {
             throw new InvalidOperationException("Account balance could not be updated.");
         }
-
-        var updatedAccount = await _accounts.Find(a => a.Id == accountId).FirstAsync();
 
         var transaction = new Transaction {
             AccountId = accountId,
@@ -60,7 +51,7 @@ public class TransactionService: ITransactionService
             CreatedAt = DateTime.UtcNow
         };
 
-        await _transactions.InsertOneAsync(transaction);
+        await _transactionRepository.InsertAsync(transaction);
 
         return new TransactionResponseDto(transaction);
     }
@@ -73,7 +64,7 @@ public class TransactionService: ITransactionService
             throw new ArgumentException("Invalid account ID.");
         }
 
-        var account = await _accounts.Find(a => a.Id == accountId).FirstOrDefaultAsync();
+        Account? account = await _accountRepository.GetByIdAsync(accountId);
 
         if(account is null) {
             throw new KeyNotFoundException("Account not found.");
@@ -83,22 +74,12 @@ public class TransactionService: ITransactionService
             throw new InvalidOperationException("Cannot withdraw from a closed account.");
         }
 
-        // Atomically check the balance and deduct the amount.
-        var filter = Builders<Account>.Filter.And(
-            Builders<Account>.Filter.Eq(a => a.Id, accountId),
-            Builders<Account>.Filter.Eq(a => a.Status, "Active"),
-            Builders<Account>.Filter.Gte(a => a.Balance, request.Amount));
+        Account? updatedAccount = await _accountRepository
+            .DebitBalanceIfActiveAndSufficientAsync(accountId, request.Amount);
 
-        var update = Builders<Account>.Update
-            .Inc(a => a.Balance, -request.Amount);
-
-        var result = await _accounts.UpdateOneAsync(filter, update);
-
-        if(result.ModifiedCount != 1) {
+        if(updatedAccount is null) {
             throw new InvalidOperationException("Balance changed or funds are insufficient. Retry the request.");
         }
-
-        var updatedAccount = await _accounts.Find(a => a.Id == accountId).FirstAsync();
 
         var transaction = new Transaction {
             AccountId = accountId,
@@ -109,7 +90,7 @@ public class TransactionService: ITransactionService
             CreatedAt = DateTime.UtcNow
         };
 
-        await _transactions.InsertOneAsync(transaction);
+        await _transactionRepository.InsertAsync(transaction);
 
         return new TransactionResponseDto(transaction);
     }
@@ -120,16 +101,13 @@ public class TransactionService: ITransactionService
             throw new ArgumentException("Invalid account ID.");
         }
 
-        var accountExists = await _accounts.Find(a => a.Id == accountId).AnyAsync();
+        Account? account = await _accountRepository.GetByIdAsync(accountId);
 
-        if(!accountExists) {
+        if(account is null) {
             throw new KeyNotFoundException("Account not found.");
         }
 
-        var transactions = await _transactions
-            .Find(t => t.AccountId == accountId)
-            .SortByDescending(t => t.CreatedAt)
-            .ToListAsync();
+        List<Transaction> transactions = await _transactionRepository.GetByAccountIdAsync(accountId);
 
         return transactions.Select(t => new TransactionResponseDto(t)).ToList();
     }
@@ -139,7 +117,7 @@ public class TransactionService: ITransactionService
         if(!ObjectId.TryParse(transactionId, out _)) {
             return null;
         }
-        var transaction = await _transactions.Find(t => t.Id == transactionId).FirstOrDefaultAsync();
+        Transaction? transaction = await _transactionRepository.GetByIdAsync(transactionId);
         return transaction is null ? null : new TransactionResponseDto(transaction);
     }
     
