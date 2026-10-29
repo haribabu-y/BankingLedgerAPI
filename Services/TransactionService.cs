@@ -42,7 +42,8 @@ public class TransactionService: ITransactionService
             throw new InvalidOperationException("Account balance could not be updated.");
         }
 
-        var transaction = new Transaction {
+        var transaction = new Transaction
+        {
             AccountId = accountId,
             Type = "Credit",
             Amount = request.Amount,
@@ -51,8 +52,36 @@ public class TransactionService: ITransactionService
             CreatedAt = DateTime.UtcNow
         };
 
-        await _transactionRepository.InsertAsync(transaction);
+        try
+        {
+            await _transactionRepository.InsertAsync(transaction);
+        }
+        catch (Exception error)
+        {
+            Console.WriteLine(
+                $"Transaction insert failed: {error}");
 
+            try
+            {
+                var rollbackSucceeded =
+                    await _accountRepository.DebitBalanceIfActiveAndSufficientAsync(accountId, request.Amount);
+
+                if (rollbackSucceeded is null)
+                {
+                    throw new InvalidOperationException("Could not roll back the account credit.");
+                }
+            }
+            catch (Exception rollbackError)
+            {
+                Console.WriteLine($"CRITICAL: Account rollback failed: {rollbackError}");
+
+                throw new InvalidOperationException(
+                    "Transaction failed and account rollback could not be confirmed.",
+                    new AggregateException(error, rollbackError));
+            }
+
+            throw;
+        }
         return new TransactionResponseDto(transaction);
     }
 
@@ -81,7 +110,8 @@ public class TransactionService: ITransactionService
             throw new InvalidOperationException("Balance changed or funds are insufficient. Retry the request.");
         }
 
-        var transaction = new Transaction {
+        var transaction = new Transaction
+        {
             AccountId = accountId,
             Type = "Debit",
             Amount = request.Amount,
@@ -89,8 +119,37 @@ public class TransactionService: ITransactionService
             Description = request.Description.Trim(),
             CreatedAt = DateTime.UtcNow
         };
+        
+        try
+        {
+            await _transactionRepository.InsertAsync(transaction);
+        }
+        catch (Exception error)
+        {
+            Console.WriteLine(
+                $"Transaction insert failed: {error}");
 
-        await _transactionRepository.InsertAsync(transaction);
+            try
+            {
+                Account? rollbackSucceeded =
+                    await _accountRepository.CreditBalanceIfActiveAsync(accountId, request.Amount);
+
+                if (rollbackSucceeded is null)
+                {
+                    throw new InvalidOperationException("Could not roll back the account credit.");
+                }
+            }
+            catch (Exception rollbackError)
+            {
+                Console.WriteLine($"CRITICAL: Account rollback failed: {rollbackError}");
+
+                throw new InvalidOperationException(
+                    "Transaction failed and account rollback could not be confirmed.",
+                    new AggregateException(error, rollbackError));
+            }
+
+            throw;
+        }
 
         return new TransactionResponseDto(transaction);
     }
